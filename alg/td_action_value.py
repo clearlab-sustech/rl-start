@@ -8,7 +8,6 @@ class TdActionValueEstimator:
         self.policy = self.create_random_policy()
         self.gamma = gamma
 
-        # Q-table 用于存储每个状态-动作对的价值
         self.q_table = defaultdict(lambda: np.zeros(self.env.action_dim))
         self.states_actions_count = defaultdict(lambda: np.zeros(self.env.action_dim))
 

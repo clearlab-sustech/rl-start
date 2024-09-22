@@ -1,30 +1,42 @@
 import numpy as np
 
 class QLearning:
-
-    def __init__(self, ncol, nrow, epsilon, alpha, gamma, n_action=4):
-        self.Q_table = np.zeros([nrow * ncol, n_action])
-        self.n_action = n_action
-        self.alpha = alpha
-        self.gamma = gamma
+    def __init__(self, env, learning_rate=0.1, discount_factor=0.99, epsilon=1.0, epsilon_decay=0.995):
+        self.env = env
+        self.learning_rate = learning_rate
+        self.discount_factor = discount_factor
         self.epsilon = epsilon
-
-    def take_action(self, state):
-        if np.random.random() < self.epsilon:
-            action = np.random.randint(self.n_action)
+        self.epsilon_decay = epsilon_decay
+        self.n_actions = env.action_space.n
+        self.n_states = env.observation_space.n
+        self.Q = np.zeros((self.n_states, self.n_actions))
+    
+    def choose_action(self, state):
+        """Epsilon-greedy action selection."""
+        if np.random.uniform(0, 1) < self.epsilon:
+            return np.random.choice(self.n_actions)
         else:
-            action = np.argmax(self.Q_table[state])
-        return action
+            return np.argmax(self.Q[state, :])
 
-    def best_action(self, state):
-        Q_max = np.max(self.Q_table[state])
-        a = [0 for _ in range(self.n_action)]
-        for i in range(self.n_action):
-            if self.Q_table[state, i] == Q_max:
-                a[i] = 1
-        return a
-
-    def update(self, s0, a0, r, s1):
-        td_error = r + self.gamma * self.Q_table[s1].max(
-        ) - self.Q_table[s0, a0]
-        self.Q_table[s0, a0] += self.alpha * td_error
+    def train(self, num_episodes):
+        """Train the agent using the Q-Learning algorithm."""
+        for episode in range(num_episodes):
+            state = self.env.reset()
+            done = False
+            
+            while not done:
+                action = self.choose_action(state)
+                next_state, reward, done, _ = self.env.step(action)
+                
+                # Q-Learning update rule
+                self.Q[state, action] += self.learning_rate * (
+                    reward + self.discount_factor * np.max(self.Q[next_state, :]) - self.Q[state, action])
+                
+                state = next_state
+            
+            # Decay epsilon
+            self.epsilon = max(self.epsilon * self.epsilon_decay, 0.01)
+    
+    def get_q_table(self):
+        """Returns the learned Q-table."""
+        return self.Q
