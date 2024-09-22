@@ -1,0 +1,6 @@
+# virtual environment
+/rlstart-env
+
+# others
+*.egg-info
+*/__pycache__
