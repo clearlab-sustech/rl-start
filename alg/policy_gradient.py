@@ -48,7 +48,7 @@ class VPGAgent:
     def train(self, num_episodes):
         """Train the agent using the Vanilla Policy Gradient algorithm."""
         for episode in range(num_episodes):
-            state = self.env.reset()
+            state, _ = self.env.reset()  # gymnasium reset() returns tuple (state, info)
             log_probs = []
             rewards = []
             total_reward = 0
@@ -56,7 +56,7 @@ class VPGAgent:
             
             while not done:
                 action, log_prob = self.choose_action(state)
-                next_state, reward, done, _ = self.env.step(action)
+                next_state, reward, done, _, _ = self.env.step(action)
                 
                 log_probs.append(log_prob)
                 rewards.append(reward)
@@ -78,3 +78,18 @@ class VPGAgent:
             self.optimizer.step()
             
             print(f"Episode: {episode+1}/{num_episodes}, Total Reward: {total_reward}")
+
+
+if __name__ == '__main__':
+    
+    import gymnasium as gym
+
+    env = gym.make('CartPole-v1')
+
+    learning_rate = 1e-4
+    gamma = 0.99
+    num_episodes = 1000
+
+    agent = VPGAgent(env, learning_rate, gamma)
+
+    agent.train(num_episodes)

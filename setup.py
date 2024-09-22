@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name='rlstartdemo',
+    name='rlstart',
     version='0.1.0',
     author='Yinghan Sun',
     author_email='yinghansun2@gmail.com',
