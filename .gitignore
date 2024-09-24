@@ -4,3 +4,5 @@
 # others
 *.egg-info
 */__pycache__
+.vscode/*
+.flake8
