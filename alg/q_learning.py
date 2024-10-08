@@ -7,8 +7,8 @@ class QLearning:
         self.discount_factor = discount_factor
         self.epsilon = epsilon
         self.epsilon_decay = epsilon_decay
-        self.n_actions = env.action_space.n
-        self.n_states = env.observation_space.n
+        self.n_actions = env.action_dim
+        self.n_states = env.observation_dim
         self.Q = np.zeros((self.n_states, self.n_actions))
     
     def choose_action(self, state):
@@ -19,7 +19,7 @@ class QLearning:
             return np.argmax(self.Q[state, :])
 
     def train(self, num_episodes):
-        """Train the agent using the Q-Learning algorithm."""
+        
         for episode in range(num_episodes):
             state = self.env.reset()
             done = False
@@ -28,13 +28,10 @@ class QLearning:
                 action = self.choose_action(state)
                 next_state, reward, done, _ = self.env.step(action)
                 
-                # Q-Learning update rule
-                self.Q[state, action] += self.learning_rate * (
-                    reward + self.discount_factor * np.max(self.Q[next_state, :]) - self.Q[state, action])
+                self.Q[state, action] += self.learning_rate * (reward + self.discount_factor * np.max(self.Q[next_state, :]) - self.Q[state, action])
                 
                 state = next_state
-            
-            # Decay epsilon
+
             self.epsilon = max(self.epsilon * self.epsilon_decay, 0.01)
     
     def get_q_table(self):
