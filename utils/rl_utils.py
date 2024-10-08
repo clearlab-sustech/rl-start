@@ -43,11 +43,9 @@ def train_on_policy_agent(env, agent, num_episodes):
                 done = False
                 while not done:
                     action = agent.take_action(state)
-                    observation, reward, terminated, truncated, info = env.step(action)
+                    next_state, reward, terminated, truncated, info = env.step(action)
                     done = terminated or truncated
 
-                    if isinstance(state, tuple):
-                        state = state[0]
                     if isinstance(next_state, tuple):
                         next_state = next_state[0]
 
@@ -83,10 +81,8 @@ def train_off_policy_agent(env, agent, num_episodes, replay_buffer, minimal_size
                 done = False
                 while not done:
                     action = agent.take_action(state)
-                    observation, reward, terminated, truncated, info = env.step(action)
+                    next_state, reward, terminated, truncated, info = env.step(action)
 
-                    if isinstance(state, tuple):
-                        state = state[0]
                     if isinstance(next_state, tuple):
                         next_state = next_state[0]
 
