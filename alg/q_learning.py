@@ -34,6 +34,23 @@ class QLearning:
 
             self.epsilon = max(self.epsilon * self.epsilon_decay, 0.01)
     
+    
     def get_q_table(self):
         """Returns the learned Q-table."""
         return self.Q
+    
+
+if __name__ == '__main__':
+
+    from env.frozen_lake_env import FrozenLakeEnv
+
+    env = FrozenLakeEnv()
+
+    num_episode = 5000
+
+    alg = QLearning(env)
+    alg.train(num_episode)
+    print(alg.Q)
+
+    for state_i in range(0, 16):
+        print(np.argmax(alg.Q[state_i, :]))
