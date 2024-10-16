@@ -1,114 +1,220 @@
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import numpy as np
-import random
 from collections import deque
+from typing import List, Union
 
-# Neural Network for Q-Learning
-class DQN(nn.Module):
-    def __init__(self, input_dim, output_dim):
-        super(DQN, self).__init__()
-        self.fc1 = nn.Linear(input_dim, 128)
-        self.fc2 = nn.Linear(128, 128)
-        self.fc3 = nn.Linear(128, output_dim)
+import numpy as np
+import torch
+
+from utils.mlp import MLP
     
-    def forward(self, x):
-        x = torch.relu(self.fc1(x))
-        x = torch.relu(self.fc2(x))
-        return self.fc3(x)
 
-# Deep Q-Learning Agent
-class DQNAgent:
-    def __init__(self, env, gamma=0.99, epsilon=1.0, epsilon_decay=0.995, epsilon_min=0.01, learning_rate=0.001, batch_size=64, max_memory_size=10000):
+class ReplayBuffer:
+
+    def __init__(self, capacity):
+        self.buffer = deque(maxlen=capacity)
+
+    def add(self, obs, action, reward, next_obs, done):  
+        # TODO: check dtype for obs, action, next_obs, and done.
+        obs = torch.tensor(obs, dtype=torch.float32) if not isinstance(obs, torch.Tensor) else obs
+        next_obs = torch.tensor(next_obs, dtype=torch.float32) if not isinstance(next_obs, torch.Tensor) else next_obs
+        action = torch.tensor(action, dtype=torch.int64) if not isinstance(action, torch.Tensor) else action
+        reward = torch.tensor(reward, dtype=torch.float32) if not isinstance(reward, torch.Tensor) else reward
+        done = torch.tensor(done, dtype=torch.float32) if not isinstance(done, torch.Tensor) else done
+        
+        self.buffer.append((obs, action, reward, next_obs, done))
+
+    def sample(self, batch_size: int):
+        indices = torch.randint(0, len(self.buffer), (batch_size,))  # (batch_size, )
+        batch = [self.buffer[idx] for idx in indices]
+
+        obs, action, reward, next_obs, done = zip(*batch)
+        obs = torch.stack(obs)           # (batch_size, obs_dim)
+        next_obs = torch.stack(next_obs) # (batch_size, obs_dim)
+        action = torch.stack(action)     # (batch_size, action_dim)
+        if action.shape == torch.stack(reward).shape:   # action_dim = 1, shape of action: (batch_size, )
+            action = action.unsqueeze(-1)  # (batch_size, action_dim)
+        reward = torch.stack(reward).unsqueeze(-1) # (batch_size, 1)
+        done = torch.stack(done).unsqueeze(-1)     # (batch_size, 1)
+
+        return obs, action, reward, next_obs, done
+
+    @property
+    def current_num_items(self):
+        return len(self.buffer)
+
+
+class DQN:
+    '''
+    :param env: 
+    :param learning_rate: learning rate
+    :param replay_buffer_capacity: capacity of the replay buffer
+    :param batch_size: Minibatch size for each gradient update
+    :param learning_starts: how many steps of the model to collect transitions for before learning starts
+    '''
+    def __init__(
+        self,
+        env,
+        obs_dim: int,
+        num_actions: int,
+        has_truncated_info: bool = False,
+        learning_rate: float = 1e-4,
+        replay_buffer_capacity: int = 1e6,
+        gamma: float = 0.99,
+        epsilon: float = 0.005,
+        target_qnet_update: int = 10,
+        batch_size: int = 32,
+        hidden_size: List[int] = [128, 128],
+        learning_starts: int = 100,
+        device: str = 'cpu'
+    ) -> None:
+        
         self.env = env
-        self.gamma = gamma  # Discount factor
-        self.epsilon = epsilon  # Exploration rate
-        self.epsilon_decay = epsilon_decay  # Epsilon decay
-        self.epsilon_min = epsilon_min  # Minimum epsilon
-        self.learning_rate = learning_rate  # Learning rate
-        self.batch_size = batch_size
-        self.memory = deque(maxlen=max_memory_size)  # Replay buffer
-        self.input_dim = env.observation_space.shape[0]
-        self.output_dim = env.action_space.n
-        
-        # Neural network model
-        self.model = DQN(self.input_dim, self.output_dim)
-        self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
-        self.criterion = nn.MSELoss()
-    
-    def remember(self, state, action, reward, next_state, done):
-        """Store experience in replay buffer."""
-        self.memory.append((state, action, reward, next_state, done))
-    
-    def choose_action(self, state):
-        """Epsilon-greedy action selection."""
-        if np.random.rand() <= self.epsilon:
-            return self.env.action_space.sample()  # Explore: random action
-        state_tensor = torch.FloatTensor(state).unsqueeze(0)
-        q_values = self.model(state_tensor)
-        return torch.argmax(q_values).item()  # Exploit: select action with max Q-value
+        self.has_truncated_info = has_truncated_info
+        self.device = device
 
-    def replay(self):
-        """Sample a batch from memory and perform a training step."""
-        if len(self.memory) < self.batch_size:
-            return  # Not enough samples to train
+        self.replay_buffer = ReplayBuffer(int(replay_buffer_capacity))
         
-        batch = random.sample(self.memory, self.batch_size)
-        states, actions, rewards, next_states, dones = zip(*batch)
+        self.learning_rate = learning_rate
+        self.batch_size = batch_size
+        self.learning_starts = learning_starts
+        self.target_qnet_update = target_qnet_update
+
+        self.num_actions = num_actions
+        self.epsilon = epsilon
+        self.gamma = gamma
         
-        states = torch.FloatTensor(states)
-        actions = torch.LongTensor(actions).unsqueeze(1)
-        rewards = torch.FloatTensor(rewards)
-        next_states = torch.FloatTensor(next_states)
-        dones = torch.FloatTensor(dones)
+        self.Q_net = MLP(
+            input_size=obs_dim,
+            output_size=num_actions,
+            hidden_size=hidden_size,
+        ).to(device)
+        self.target_Q_net = MLP(
+            input_size=obs_dim,
+            output_size=num_actions,
+            hidden_size=hidden_size,
+        ).to(device)
+
+        self.optimizer = torch.optim.Adam(self.Q_net.parameters(), lr=learning_rate)
+
+        self.qnet_update_counter = 0
+
+
+    def epsilon_greedy_policy(self, obs: Union[np.ndarray, torch.Tensor]):
+        if isinstance(obs, np.ndarray):
+            obs = torch.tensor(obs, dtype=torch.float32) # (obs_dim, )
+        obs = obs.unsqueeze(0)      # (1, obs_dim)
+        q_values = self.Q_net(obs)  # (1, num_action)
+
+        if torch.rand(1).item() < self.epsilon:
+            action = torch.randint(0, self.num_actions, (1,)).item()
+        else:
+            action = torch.argmax(q_values, dim=1).item()
         
-        # Q(s, a) for current state-action pairs
-        current_q = self.model(states).gather(1, actions).squeeze(1)
-        
-        # Q(s', a') for next state-action pairs
-        next_q = self.model(next_states).max(1)[0]
-        expected_q = rewards + (self.gamma * next_q * (1 - dones))
-        
-        # Compute loss and optimize the model
-        loss = self.criterion(current_q, expected_q)
+        return action        
+
+
+    def _pre_data_collection(self):
+        obs, _ = self.env.reset()
+        truncated = False
+        for _ in range(self.learning_starts):
+            action = self.epsilon_greedy_policy(obs)
+            if self.has_truncated_info:
+                next_obs, reward, done, truncated, _ = self.env.step(action)
+            else:
+                next_obs, reward, done, _ = self.env.step(action)
+            self.replay_buffer.add(obs, action, reward, next_obs, done)
+            obs = next_obs
+
+            if done or truncated:
+                obs, _ = self.env.reset()
+
+
+    def _update_qnet(self, obs, actions, rewards, next_obs, dones):
+        with torch.no_grad():
+            greedy_next_action_values = self.target_Q_net(next_obs).max(1)[0].unsqueeze(-1)       # (batch_size, 1)
+            target_action_values = rewards + (1 - dones) * self.gamma * greedy_next_action_values # (batch_size, 1)
+
+        estimated_action_values = torch.gather(self.Q_net(obs), dim=1, index=actions)
+
+        loss = torch.nn.functional.mse_loss(estimated_action_values, target_action_values).mean()
+
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
 
-    def train(self, num_episodes):
-        """Train the agent using Deep Q-Learning."""
-        for episode in range(num_episodes):
-            state = self.env.reset()
-            state = np.reshape(state, [1, self.input_dim])
+        if self.qnet_update_counter % self.target_qnet_update == 0:
+            self.target_Q_net.load_state_dict(self.Q_net.state_dict())
+
+        self.qnet_update_counter += 1
+
+        # print(loss.item())
+
+
+    def train(self, num_learning_iters: int):
+
+        l_return = []
+
+        self._pre_data_collection()
+
+        # start training
+        for iter_idx in range(num_learning_iters):
+            episode_return = 0
             done = False
-            total_reward = 0
-            
+            # obs_ 
+            obs_, _ = self.env.reset()
             while not done:
-                action = self.choose_action(state)
-                next_state, reward, done, _ = self.env.step(action)
-                next_state = np.reshape(next_state, [1, self.input_dim])
-                total_reward += reward
-                
-                # Store experience in memory
-                self.remember(state, action, reward, next_state, done)
-                
-                # Move to the next state
-                state = next_state
-                
-                # Train the model by replaying experiences
-                self.replay()
-            
-            # Decay epsilon
-            if self.epsilon > self.epsilon_min:
-                self.epsilon *= self.epsilon_decay
-            
-            print(f"Episode: {episode+1}/{num_episodes}, Total Reward: {total_reward}, Epsilon: {self.epsilon:.4f}")
-    
-    def save(self, filename):
-        """Save the model to a file."""
-        torch.save(self.model.state_dict(), filename)
-    
-    def load(self, filename):
-        """Load the model from a file."""
-        self.model.load_state_dict(torch.load(filename))
+                action = self.epsilon_greedy_policy(obs_)
+                if self.has_truncated_info:
+                    next_obs, reward, done, truncated, _ = self.env.step(action)
+                else:
+                    next_obs, reward, done, _ = self.env.step(action)
+                self.replay_buffer.add(obs_, action, reward, next_obs, done)
+                obs_ = next_obs
+                episode_return = reward + self.gamma * episode_return
+
+                obs, actions, rewards, next_obs, dones = self.replay_buffer.sample(self.batch_size)
+                self._update_qnet(obs, actions, rewards, next_obs, dones)
+
+            l_return.append(episode_return)
+            print(iter_idx, episode_return)
+
+
+def test_from_stable_baseline():
+    import gymnasium as gym
+
+    from stable_baselines3 import DQN
+
+    env = gym.make("CartPole-v1", render_mode="human")
+
+    model = DQN("MlpPolicy", env, verbose=1)
+    model.learn(total_timesteps=10000, log_interval=4)
+    model.save("dqn_cartpole")
+
+    del model # remove to demonstrate saving and loading
+
+    model = DQN.load("dqn_cartpole")
+
+    obs, info = env.reset()
+    while True:
+        action, _obss = model.predict(obs, deterministic=True)
+        obs, reward, terminated, truncated, info = env.step(action)
+        if terminated or truncated:
+            obs, info = env.reset()
+
+
+if __name__ == '__main__':
+    # test_from_stable_baseline()
+
+    import gymnasium as gym
+
+    env = gym.make("CartPole-v1", render_mode="human")
+
+    alg = DQN(
+        env,
+        obs_dim=4,
+        num_actions=2,
+        has_truncated_info=True,
+        hidden_size=[64, 32],
+        learning_rate=2e-3,
+    )
+
+    alg.train(num_learning_iters=500)
