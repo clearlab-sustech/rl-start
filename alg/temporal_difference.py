@@ -62,5 +62,4 @@ if __name__ == '__main__':
     
     td_value_estimator.estimate_state_values(num_episode=10000)
 
-    print(td_value_estimator.sorted_values_table)
-    env.render()
+    env.draw_state_values(td_value_estimator.sorted_values_table)
