@@ -3,6 +3,7 @@ from typing import List, Tuple
 import cv2
 import gymnasium as gym
 import matplotlib.pyplot as plt
+import numpy as np
 
 from PIL import Image
 
@@ -46,12 +47,47 @@ class FrozenLakeEnv:
         image = Image.fromarray(rgb_map)
         image.save(img_name)
 
-    def draw_state_values(self, state_values: List[Tuple]):
+    def draw_state_idx(self, show: bool = False) -> np.ndarray:
+        rgb_map: np.ndarray = self.env.render()
+        corner_list = [(64*i, 64*j) for j in range(4) for i in range(4)]
+
+        position_list = []
+        offset = (2, 17)
+        for corner in corner_list:
+            position = list(corner)
+            position[0] += offset[0]
+            position[1] += offset[1]
+            position_list.append(tuple(position))
+
+        for i in range(len(position_list)):
+            state_idx = i
+            cv2.putText(
+                img=rgb_map,
+                text=str(state_idx),
+                org=position_list[i],
+                fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+                fontScale=0.6,
+                color=(128, 0, 128),
+                thickness=2, 
+                lineType=cv2.LINE_AA
+            )
+
+        if show:
+            plt.imshow(rgb_map)        
+            plt.axis('off')
+            plt.show()
+
+        return rgb_map
+
+    def draw_state_values(self, state_values: List[Tuple], with_state_idx: bool = True) -> None:
         assert len(state_values) == 16 or len(state_values) == 11
         if len(state_values) == 16:
             state_values = [state_value for state_value in state_values if state_value[1] != 0]
 
-        rgb_map = self.env.render()
+        if with_state_idx:
+            rgb_map = self.draw_state_idx()
+        else:
+            rgb_map = self.env.render()
 
         corner_list = [
             (64*0, 64*1),
@@ -86,8 +122,8 @@ class FrozenLakeEnv:
                 org=position_list[i], 
                 fontFace=cv2.FONT_HERSHEY_SIMPLEX, 
                 fontScale=0.6, 
-                color=(0, 0, 0), 
-                thickness=2, 
+                color=(40, 40, 40),
+                thickness=1, 
                 lineType=cv2.LINE_AA
             )
         
@@ -110,4 +146,5 @@ if __name__ == '__main__':
     obs, reward, done, info = env.step(action)
     action = 2
     obs, reward, done, info = env.step(action)
-    env.render()
+    # env.render()
+    env.draw_state_idx(show=True)
