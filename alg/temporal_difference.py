@@ -62,4 +62,7 @@ if __name__ == '__main__':
     
     td_value_estimator.estimate_state_values(num_episode=10000)
 
+    greedy_policy = env.compute_greedy_policy(td_value_estimator.sorted_values_table)
+    print(greedy_policy)
     env.draw_state_values(td_value_estimator.sorted_values_table)
+    env.draw_policy(greedy_policy)

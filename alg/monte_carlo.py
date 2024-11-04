@@ -54,6 +54,8 @@ class MonteCarloStateValueEstimator:
 
     @property
     def sorted_values_table(self):
+        for state in self.env.termination_states:
+            self.values_table[state] = 0.
         return tuple(sorted(self.values_table.items()))
 
 
@@ -66,4 +68,7 @@ if __name__ == '__main__':
     
     mc_value_estimator.estimate_state_values(num_episode=10000)
 
+    greedy_policy = env.compute_greedy_policy(mc_value_estimator.sorted_values_table)
+    print(greedy_policy)
     env.draw_state_values(mc_value_estimator.sorted_values_table)
+    env.draw_policy(greedy_policy)
