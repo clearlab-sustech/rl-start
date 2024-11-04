@@ -80,6 +80,7 @@ class FrozenLakeEnv:
         image.save(img_name)
 
     def draw_state_idx(self, show: bool = False) -> np.ndarray:
+        self.env.reset()
         rgb_map: np.ndarray = self.env.render()
 
         upper_left_corner_list = [(64*i, 64*j) for j in range(4) for i in range(4)]
@@ -225,6 +226,64 @@ class FrozenLakeEnv:
 
         return greedy_policy
 
+    def set_state(self, desired_state: int, vis: bool = False) -> None:
+        self.reset()
+
+        if desired_state == 0:
+            pass
+        elif desired_state == 1:
+            self.env.step(MOVE_RIGHT)
+        elif desired_state == 2:
+            self.env.step(MOVE_RIGHT)
+            self.env.step(MOVE_RIGHT)
+        elif desired_state == 3:
+            self.env.step(MOVE_RIGHT)
+            self.env.step(MOVE_RIGHT)
+            self.env.step(MOVE_RIGHT)
+
+        elif desired_state == 4:
+            self.env.step(MOVE_DOWN)
+        elif desired_state == 6:
+            self.env.step(MOVE_RIGHT)
+            self.env.step(MOVE_RIGHT)
+            self.env.step(MOVE_DOWN)
+
+        elif desired_state == 8:
+            self.env.step(MOVE_DOWN)
+            self.env.step(MOVE_DOWN)
+        elif desired_state == 9:
+            self.env.step(MOVE_DOWN)
+            self.env.step(MOVE_DOWN)
+            self.env.step(MOVE_RIGHT)
+        elif desired_state == 10:
+            self.env.step(MOVE_DOWN)
+            self.env.step(MOVE_DOWN)
+            self.env.step(MOVE_RIGHT)
+            self.env.step(MOVE_RIGHT)
+
+        elif desired_state == 13:
+            self.env.step(MOVE_DOWN)
+            self.env.step(MOVE_DOWN)
+            self.env.step(MOVE_RIGHT)
+            self.env.step(MOVE_DOWN)
+        elif desired_state == 14:
+            self.env.step(MOVE_DOWN)
+            self.env.step(MOVE_DOWN)
+            self.env.step(MOVE_RIGHT)
+            self.env.step(MOVE_DOWN)
+            self.env.step(MOVE_RIGHT)
+
+        else:
+            print("[ERROR] Invalid setting.")
+
+        if vis:
+            self.env.render()
+
+    def get_transition(self, state: int, action: int) -> Tuple[int, float]:
+        self.set_state(state)
+        next_state, reward, _, _ = self.step(action)
+        return next_state, reward
+
     @property
     def observation_dim(self) -> int:
         return self.env.observation_space.n
@@ -240,4 +299,6 @@ if __name__ == '__main__':
     obs, reward, done, info = env.step(action)
     action = 2
     obs, reward, done, info = env.step(action)
-    env.draw_state_idx(show=True)
+    # env.draw_state_idx(show=True)
+
+    env.set_state(14, vis=True)
