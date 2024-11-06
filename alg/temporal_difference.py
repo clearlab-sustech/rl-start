@@ -28,26 +28,25 @@ class TdStateValueEstimator:
 
     def run_episode(self):
         obs = self.env.reset()
+
         while True:
             action = np.random.choice(np.arange(self.env.action_dim), p=self.policy[obs])
             next_obs, reward, done, info = self.env.step(action)
-            self.update_state_values(obs, reward, next_obs)
+
+            # TD(0): 1-step TD
+            TD_target = reward + self.gamma * self.values_table[next_obs]
+            TD_error = TD_target - self.values_table[obs]
+
+            self.states_count[obs] += 1
+            if self.constant_alpha:
+                alpha = self.alpha
+            else:
+                alpha = 1 / (self.states_count[obs] + 1)
+            self.values_table[obs] += alpha * TD_error
             obs = next_obs
 
             if done:
                 break
-
-    def update_state_values(self, state, reward, next_state):
-        # TD(0): 1-step TD
-        TD_target = reward + self.gamma * self.values_table[next_state]
-        TD_error = TD_target - self.values_table[state]
-
-        self.states_count[state] += 1
-        if self.constant_alpha:
-            alpha = self.alpha
-        else:
-            alpha = 1 / (self.states_count[state] + 1)
-        self.values_table[state] += alpha * TD_error
 
     def estimate_state_values(self, num_episode=10000):
         for _ in range(num_episode):
