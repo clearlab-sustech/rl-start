@@ -11,6 +11,8 @@ class MonteCarloStateValueEstimator:
         gamma: float = 1.0,
         type: str = 'every-visit',
         incremental: bool = True,
+        constant_alpha: bool = False,
+        alpha: float = 0.02,
     ) -> None:
         assert type in ['first-visit', 'every-visit']
 
@@ -20,6 +22,8 @@ class MonteCarloStateValueEstimator:
 
         self.type = type
         self.incremental = incremental
+        self.constant_alpha = constant_alpha
+        self.alpha = alpha
 
         self.states_count = defaultdict(float)
         self.values_table = defaultdict(float)
@@ -73,7 +77,10 @@ class MonteCarloStateValueEstimator:
                 obs, action, reward = traj[t]
                 G = reward + self.gamma * G
                 self.states_count[obs] += 1
-                alpha = 1 / (self.states_count[obs] + 1)
+                if self.constant_alpha:
+                    alpha = self.alpha
+                else:
+                    alpha = 1 / (self.states_count[obs] + 1)
                 self.values_table[obs] += alpha * (G - self.values_table[obs])
         else:
             visited_states = set()
@@ -82,7 +89,10 @@ class MonteCarloStateValueEstimator:
                 G = reward + self.gamma * G
                 if obs not in visited_states:
                     self.states_count[obs] += 1
-                    alpha = 1 / (self.states_count[obs] + 1)
+                    if self.constant_alpha:
+                        alpha = self.alpha
+                    else:
+                        alpha = 1 / (self.states_count[obs] + 1)
                     self.values_table[obs] += alpha * (G - self.values_table[obs])
 
     def estimate_state_values(self, num_episode=10000):
@@ -106,9 +116,12 @@ if __name__ == '__main__':
 
     env = FrozenLakeEnv()
     mc_value_estimator = MonteCarloStateValueEstimator(
-        env, 
+        env,
+        gamma=0.99,
         type='first-visit',
         incremental=False,
+        constant_alpha=True,
+        alpha=0.05
     )
     
     mc_value_estimator.estimate_state_values(num_episode=20000)
