@@ -10,6 +10,7 @@ class MonteCarloStateValueEstimator:
         env,
         gamma: float = 1.0,
         type: str = 'every-visit',
+        incremental: bool = True,
     ) -> None:
         assert type in ['first-visit', 'every-visit']
 
@@ -18,10 +19,12 @@ class MonteCarloStateValueEstimator:
         self.gamma = gamma
 
         self.type = type
+        self.incremental = incremental
 
-        self.returns_sum = defaultdict(float)
-        self.returns_count = defaultdict(float)
+        self.states_count = defaultdict(float)
         self.values_table = defaultdict(float)
+        if not incremental:
+            self.returns_sum = defaultdict(float)
 
     def create_random_policy(self):
         policy = {}
@@ -50,8 +53,8 @@ class MonteCarloStateValueEstimator:
                 obs, action, reward = traj[t]
                 G = reward + self.gamma * G
                 self.returns_sum[obs] += G
-                self.returns_count[obs] += 1
-                self.values_table[obs] = self.returns_sum[obs] / self.returns_count[obs]
+                self.states_count[obs] += 1
+                self.values_table[obs] = self.returns_sum[obs] / self.states_count[obs]
         else:
             visited_states = set()
             for t in reversed(range(len(traj))):
@@ -59,14 +62,36 @@ class MonteCarloStateValueEstimator:
                 G = reward + self.gamma * G
                 if obs not in visited_states:
                     self.returns_sum[obs] += G
-                    self.returns_count[obs] += 1
-                    self.values_table[obs] = self.returns_sum[obs] / self.returns_count[obs]
+                    self.states_count[obs] += 1
+                    self.values_table[obs] = self.returns_sum[obs] / self.states_count[obs]
                     visited_states.add(obs)
+
+    def update_state_values_incrementally(self, traj):
+        G = 0
+        if self.type == 'every-visit':
+            for t in reversed(range(len(traj))):
+                obs, action, reward = traj[t]
+                G = reward + self.gamma * G
+                self.states_count[obs] += 1
+                alpha = 1 / (self.states_count[obs] + 1)
+                self.values_table[obs] += alpha * (G - self.values_table[obs])
+        else:
+            visited_states = set()
+            for t in reversed(range(len(traj))):
+                obs, action, reward = traj[t]
+                G = reward + self.gamma * G
+                if obs not in visited_states:
+                    self.states_count[obs] += 1
+                    alpha = 1 / (self.states_count[obs] + 1)
+                    self.values_table[obs] += alpha * (G - self.values_table[obs])
 
     def estimate_state_values(self, num_episode=10000):
         for _ in range(num_episode):
             traj = self.run_episode()
-            self.update_state_values(traj)
+            if self.incremental:
+                self.update_state_values_incrementally(traj)
+            else:
+                self.update_state_values(traj)
 
     @property
     def sorted_values_table(self):
@@ -80,7 +105,11 @@ if __name__ == '__main__':
     from env.frozen_lake_env import FrozenLakeEnv
 
     env = FrozenLakeEnv()
-    mc_value_estimator = MonteCarloStateValueEstimator(env, type='every-visit')
+    mc_value_estimator = MonteCarloStateValueEstimator(
+        env, 
+        type='first-visit',
+        incremental=False,
+    )
     
     mc_value_estimator.estimate_state_values(num_episode=20000)
 
