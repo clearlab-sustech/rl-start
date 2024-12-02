@@ -71,8 +71,7 @@ class FrozenLakeEnv:
         plt.axis('off')
         plt.show()
 
-    def save_img(self, img_name: str='img.png') -> None:
-        rgb_map = self.env.render()
+    def save_img(self, rgb_map: np.ndarray, img_name: str='img.png') -> None:
         image = Image.fromarray(rgb_map)
         image.save(img_name)
 
@@ -109,7 +108,9 @@ class FrozenLakeEnv:
     def draw_state_values(
         self, 
         state_values: List[Tuple], 
-        with_state_idx: bool = True
+        with_state_idx: bool = True,
+        save: bool = False,
+        img_name: str = 'state_values.png'
     ) -> None:
         if with_state_idx:
             rgb_map: np.ndarray = self.draw_state_idx()
@@ -140,6 +141,9 @@ class FrozenLakeEnv:
                 lineType=cv2.LINE_AA
             )
         
+        if save:
+            self.save_img(rgb_map, img_name)
+
         plt.imshow(rgb_map)        
         plt.axis('off')
         plt.show()
@@ -147,7 +151,9 @@ class FrozenLakeEnv:
     def draw_policy(
         self, 
         policy, 
-        with_state_idx: bool = True
+        with_state_idx: bool = True,
+        save: bool = False,
+        img_name: str = 'policy.png'
     ) -> None:
         arrow_length = 20
 
@@ -189,6 +195,9 @@ class FrozenLakeEnv:
                     line_type=cv2.LINE_8,
                     tipLength=0.3
                 )
+
+        if save:
+            self.save_img(rgb_map, img_name)
 
         plt.imshow(rgb_map)        
         plt.axis('off')
