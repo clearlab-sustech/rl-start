@@ -29,8 +29,7 @@ class FrozenLakeEnv:
             render_mode='rgb_array'
         )
     
-        # obs, info = self.reset()
-        obs = self.reset()
+        self.reset()
         
         self.adjacency_info = {
             0: [1, 4],
@@ -58,10 +57,8 @@ class FrozenLakeEnv:
         assert len(self.state_space) == self.env.observation_space.n
         assert len(self.action_space) == self.env.action_space.n
 
-    def reset(self, return_info=False) -> Tuple[int, dict]:
+    def reset(self) -> int:
         obs, info = self.env.reset()
-        # print("obs = {}, info = {}".format(obs, info))
-        # return obs, info if return_info else obs
         return obs
 
     def step(self, action: int) -> Tuple[int, float, bool, bool, dict]:
@@ -170,25 +167,28 @@ class FrozenLakeEnv:
             start_position = list(upper_left_corner_list[state])
             start_position[0] += start_pt_offset[0]
             start_position[1] += start_pt_offset[1]
-            
-            if policy[state][1] == MOVE_LEFT:
-                end_position = (start_position[0]-arrow_length, start_position[1])
-            elif policy[state][1] == MOVE_RIGHT:
-                end_position = (start_position[0]+arrow_length, start_position[1])
-            elif policy[state][1] == MOVE_UP:
-                end_position = (start_position[0], start_position[1]-arrow_length)
-            else:
-                end_position = (start_position[0], start_position[1]+arrow_length)
 
-            cv2.arrowedLine(
-                img=rgb_map, 
-                pt1=start_position, 
-                pt2=end_position,
-                color=(40, 40, 40),
-                thickness=3,
-                line_type=cv2.LINE_8,
-                tipLength=0.3
-            )
+            l_end_position = []
+
+            if float(policy[state][MOVE_LEFT]) != float(0):
+                l_end_position.append((start_position[0]-arrow_length, start_position[1]))
+            if float(policy[state][MOVE_RIGHT]) != float(0):
+                l_end_position.append((start_position[0]+arrow_length, start_position[1]))
+            if float(policy[state][MOVE_UP]) != float(0):
+                l_end_position.append((start_position[0], start_position[1]-arrow_length))
+            if float(policy[state][MOVE_DOWN]) != float(0):
+                l_end_position.append((start_position[0], start_position[1]+arrow_length))
+
+            for end_position in l_end_position:
+                cv2.arrowedLine(
+                    img=rgb_map, 
+                    pt1=start_position, 
+                    pt2=end_position,
+                    color=(40, 40, 40),
+                    thickness=3,
+                    line_type=cv2.LINE_8,
+                    tipLength=0.3
+                )
 
         plt.imshow(rgb_map)        
         plt.axis('off')
@@ -197,12 +197,12 @@ class FrozenLakeEnv:
     def compute_greedy_policy(self, state_values: List[Tuple]) -> List[Tuple]:
         assert len(state_values) == len(self.state_space)
 
-        greedy_policy = []
+        greedy_policy = {}
         for state_value in state_values:
             state, _ = state_value
-            
+
             if state in self.termination_states:
-                greedy_policy.append((state, None))
+                greedy_policy[state] = None
                 continue
 
             adjacency_states = self.adjacency_info[state]
@@ -216,13 +216,13 @@ class FrozenLakeEnv:
                 next_state = max(adjacency_values, key=lambda x: x[1])[0]
 
             if next_state - state == 4:
-                greedy_policy.append((state, MOVE_DOWN))
+                greedy_policy[state] = [0, 1, 0, 0]
             elif next_state - state == 1:
-                greedy_policy.append((state, MOVE_RIGHT))
+                greedy_policy[state] = [0, 0, 1, 0]
             elif next_state - state == -1:
-                greedy_policy.append((state, MOVE_LEFT))
+                greedy_policy[state] = [1, 0, 0, 0]
             else:
-                greedy_policy.append((state, MOVE_UP))
+                greedy_policy[state] = [0, 0, 0, 1]
 
         return greedy_policy
 

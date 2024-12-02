@@ -124,6 +124,8 @@ if __name__ == '__main__':
         alpha=0.05
     )
     
+    env.draw_policy(mc_value_estimator.create_random_policy())
+
     mc_value_estimator.estimate_state_values(num_episode=20000)
 
     greedy_policy = env.compute_greedy_policy(mc_value_estimator.sorted_values_table)
