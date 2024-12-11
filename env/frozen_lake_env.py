@@ -122,9 +122,6 @@ class FrozenLakeEnv:
         offset = (5, 39)
 
         for state in self.state_space:
-            if state in self.termination_states:
-                continue
-
             position = list(upper_left_corner_list[state])
             position[0] += offset[0]
             position[1] += offset[1]
