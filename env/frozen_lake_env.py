@@ -20,35 +20,18 @@ class FrozenLakeEnv:
     See https://gymnasium.farama.org/environments/toy_text/frozen_lake/ 
     for more information.
     '''
-    def __init__(self) -> None:
+    def __init__(self, is_slippery: bool = False) -> None:
+        self.is_slippery = is_slippery
         self.env = gym.make(
             'FrozenLake-v1', 
             desc=None, 
             map_name="4x4", 
-            is_slippery=False, 
+            is_slippery=is_slippery, 
             render_mode='rgb_array'
         )
     
         self.reset()
         
-        self.adjacency_info = {
-            0: [1, 4],
-            1: [0, 2, 5],
-            2: [1, 3, 6],
-            3: [2, 7],
-            4: [0, 5, 8],
-            5: [1, 4, 6, 9],
-            6: [2, 5, 7, 10],
-            7: [3, 6, 11],
-            8: [4, 9, 12],
-            9: [5, 8, 10, 13],
-            10: [6, 9, 11, 14],
-            11: [7, 10, 15],
-            12: [8, 13],
-            13: [9, 12, 14],
-            14: [10, 13, 15],
-            15: [11, 14]
-        }
         self.state_space = [i for i in range(16)]
         self.termination_states = [5, 7, 11, 12, 15]
         self.init_state = 0
@@ -200,7 +183,11 @@ class FrozenLakeEnv:
         plt.axis('off')
         plt.show()
 
-    def compute_greedy_policy(self, state_values: List[Tuple]) -> List[Tuple]:
+    def compute_greedy_policy(
+        self, 
+        state_values: List[Tuple], 
+        gamma: float = 1.00
+    ) -> List[Tuple]:
         assert len(state_values) == len(self.state_space)
 
         greedy_policy = {}
@@ -211,15 +198,11 @@ class FrozenLakeEnv:
                 greedy_policy[state] = None
                 continue
 
-            adjacency_states = self.adjacency_info[state]
-
-            if self.goal_state in adjacency_states:
-                next_state = self.termination_states[-1]
-            else:
-                adjacency_values = []
-                for adjacency_state in adjacency_states:
-                    adjacency_values.append((adjacency_state, state_values[adjacency_state][1]))
-                next_state = max(adjacency_values, key=lambda x: x[1])[0]
+            rewards_subsequent = []
+            for action in self.action_space:
+                next_state, reward = self.get_transition(state, action)
+                rewards_subsequent.append((next_state, reward + gamma * state_values[next_state][1]))
+            next_state = max(rewards_subsequent, key=lambda x: x[1])[0]
 
             if next_state - state == 4:
                 greedy_policy[state] = [0, 1, 0, 0]
