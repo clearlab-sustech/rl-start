@@ -31,8 +31,8 @@ class ValueNet(torch.nn.Module):
         return self.fc2(x)
 
 
-class PPO:
-    """Clipped-PPO"""
+class VPG:
+    """Vanilla Policy Gradient"""
 
     def __init__(
         self,
@@ -42,8 +42,6 @@ class PPO:
         actor_lr,
         critic_lr,
         lmbda,
-        epochs,
-        eps,
         gamma,
         device,
     ):
@@ -53,18 +51,13 @@ class PPO:
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=critic_lr)
         self.gamma = gamma
         self.lmbda = lmbda
-        self.epochs = epochs
-        self.eps = eps
         self.device = device
 
-    def take_action(self, state, eval=False):
-        state = torch.tensor([state], dtype=torch.float).to(self.device)
+    def take_action(self, state):
+        state = torch.tensor(np.array([state]), dtype=torch.float).to(self.device)
         probs = self.actor(state)
-        if eval:
-            action = torch.argmax(probs, dim=1)
-        else:
-            action_dist = torch.distributions.Categorical(probs)
-            action = action_dist.sample()
+        action_dist = torch.distributions.Categorical(probs)
+        action = action_dist.sample()
         return action.item()
 
     def update(self, transition_dict):
@@ -85,29 +78,24 @@ class PPO:
             .view(-1, 1)
             .to(self.device)
         )
+
         td_target = rewards + self.gamma * self.critic(next_states) * (1 - dones)
         td_delta = td_target - self.critic(states)
         advantage = rl_utils.compute_advantage(
             self.gamma, self.lmbda, td_delta.cpu()
         ).to(self.device)
-        old_log_probs = torch.log(self.actor(states).gather(1, actions)).detach()
 
-        for _ in range(self.epochs):
-            log_probs = torch.log(self.actor(states).gather(1, actions))
-            ratio = torch.exp(log_probs - old_log_probs)
-            surr1 = ratio * advantage
-            surr2 = torch.clamp(ratio, 1 - self.eps, 1 + self.eps) * advantage
-            actor_loss = torch.mean(-torch.min(surr1, surr2))
+        log_probs = torch.log(self.actor(states).gather(1, actions))
+        actor_loss = torch.mean(-log_probs * advantage)
 
-            critic_loss = torch.mean(
-                F.mse_loss(self.critic(states), td_target.detach())
-            )
-            self.actor_optimizer.zero_grad()
-            self.critic_optimizer.zero_grad()
-            actor_loss.backward()
-            critic_loss.backward()
-            self.actor_optimizer.step()
-            self.critic_optimizer.step()
+        critic_loss = torch.mean(F.mse_loss(self.critic(states), td_target.detach()))
+
+        self.actor_optimizer.zero_grad()
+        self.critic_optimizer.zero_grad()
+        actor_loss.backward()
+        critic_loss.backward()
+        self.actor_optimizer.step()
+        self.critic_optimizer.step()
 
 
 if __name__ == "__main__":
@@ -117,8 +105,6 @@ if __name__ == "__main__":
     hidden_dim = 128
     gamma = 0.98
     lmbda = 0.95
-    epochs = 10
-    eps = 0.2
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
     env_name = "CartPole-v0"
@@ -127,15 +113,13 @@ if __name__ == "__main__":
     torch.manual_seed(0)
     state_dim = env.observation_space.shape[0]
     action_dim = env.action_space.n
-    agent = PPO(
+    agent = VPG(
         state_dim,
         hidden_dim,
         action_dim,
         actor_lr,
         critic_lr,
         lmbda,
-        epochs,
-        eps,
         gamma,
         device,
     )
@@ -146,16 +130,16 @@ if __name__ == "__main__":
     plt.plot(episodes_list, return_list)
     plt.xlabel("Episodes")
     plt.ylabel("Returns")
-    plt.title("PPO on {}".format(env_name))
-    plt.savefig("ppo_training_curve.png")
+    plt.title("VPG on {}".format(env_name))
+    plt.savefig("vpg_training_curve.png")
     plt.close()
 
     mv_return = rl_utils.moving_average(return_list, 9)
     plt.plot(episodes_list, mv_return)
     plt.xlabel("Episodes")
     plt.ylabel("Returns")
-    plt.title("PPO on {}".format(env_name))
-    plt.savefig("ppo_training_curve_moving_average.png")
+    plt.title("VPG on {}".format(env_name))
+    plt.savefig("vpg_training_curve_moving_average.png")
     plt.close()
 
     env.close()
