@@ -5,6 +5,25 @@ import collections
 import random
 
 
+def set_seed(env, seed):
+    """Set all seeds for reproducibility
+
+    Args:
+        seed (int): The seed value to use
+    """
+    random.seed(seed)  # Python random module
+    np.random.seed(seed)  # NumPy
+    torch.manual_seed(seed)  # PyTorch
+    torch.cuda.manual_seed(seed)  # PyTorch GPU
+    torch.cuda.manual_seed_all(seed)  # PyTorch multi-GPU
+    torch.backends.cudnn.deterministic = True  # CUDNN
+    torch.backends.cudnn.benchmark = False  # CUDNN
+
+    env.reset(seed=seed)
+    env.action_space.seed(seed)
+    env.observation_space.seed(seed)
+
+
 class ReplayBuffer:
     def __init__(self, capacity):
         self.buffer = collections.deque(maxlen=capacity)
@@ -23,7 +42,9 @@ class ReplayBuffer:
 
 def moving_average(a, window_size):
     cumulative_sum = np.cumsum(np.insert(a, 0, 0))
-    middle = (cumulative_sum[window_size:] - cumulative_sum[:-window_size]) / window_size
+    middle = (
+        cumulative_sum[window_size:] - cumulative_sum[:-window_size]
+    ) / window_size
     r = np.arange(1, window_size - 1, 2)
     begin = np.cumsum(a[: window_size - 1])[::2] / r
     end = (np.cumsum(a[:-window_size:-1])[::2] / r)[::-1]
@@ -36,7 +57,13 @@ def train_on_policy_agent(env, agent, num_episodes):
         with tqdm(total=int(num_episodes / 10), desc="Iteration %d" % i) as pbar:
             for i_episode in range(int(num_episodes / 10)):
                 episode_return = 0
-                transition_dict = {"states": [], "actions": [], "next_states": [], "rewards": [], "dones": []}
+                transition_dict = {
+                    "states": [],
+                    "actions": [],
+                    "next_states": [],
+                    "rewards": [],
+                    "dones": [],
+                }
                 state = env.reset()
                 if isinstance(state, tuple):
                     state = state[0]
@@ -69,7 +96,9 @@ def train_on_policy_agent(env, agent, num_episodes):
     return return_list
 
 
-def train_off_policy_agent(env, agent, num_episodes, replay_buffer, minimal_size, batch_size):
+def train_off_policy_agent(
+    env, agent, num_episodes, replay_buffer, minimal_size, batch_size
+):
     return_list = []
     for i in range(10):
         with tqdm(total=int(num_episodes / 10), desc="Iteration %d" % i) as pbar:
